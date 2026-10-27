@@ -1,0 +1,42 @@
+name: Build and Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run unit tests
+        run: pytest -v --junitxml=test-report.xml
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          cp app.py requirements.txt dist/
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flask-app-build
+          path: dist/
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: test-report.xml
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+      - name: Copy artifacts to S3
+        run: aws s3 cp dist/ s3://aws-cicd-artifacts-danish-2026-654654223041/builds/${{ github.run_number }}/ --recursive
